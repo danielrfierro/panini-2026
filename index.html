@@ -389,6 +389,7 @@
   .spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 10px; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .loading-txt { font-size: 14px; color: var(--text3); font-weight: 500; }
+  .loading-sub { font-size: 11px; color: var(--text3); margin-top: 4px; opacity: 0.7; }
 
   /* ─── SAVING BADGE (para operaciones en background) ─── */
   .saving-badge {
@@ -460,7 +461,7 @@
 </div>
 
 <div class="loading-wrap" id="loading">
-  <div class="loading-box"><div class="spinner"></div><div class="loading-txt" id="loading-txt">Cargando...</div></div>
+  <div class="loading-box"><div class="spinner"></div><div class="loading-txt" id="loading-txt">Cargando...</div><div class="loading-sub" id="loading-sub"></div></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -711,6 +712,7 @@ let editingId = null;
 let searchQuery = '';
 let savingTimer = null;
 let currentLeadPhone = '';
+let loadingCounterInterval = null;
 
 /* ─── DARK MODE ─── */
 function initDarkMode() {
@@ -828,9 +830,24 @@ function onSearch(val) {
 /* ─── UTILS ─── */
 function loading(txt) {
   document.getElementById('loading-txt').textContent = txt || 'Cargando...';
+  document.getElementById('loading-sub').textContent = '';
   document.getElementById('loading').classList.add('show');
+  // Contador de segundos para que el usuario sepa que algo está pasando
+  let secs = 0;
+  if (loadingCounterInterval) clearInterval(loadingCounterInterval);
+  loadingCounterInterval = setInterval(() => {
+    secs++;
+    const sub = document.getElementById('loading-sub');
+    if (secs < 5) sub.textContent = '';
+    else if (secs < 10) sub.textContent = `${secs}s — esto puede tardar un momento...`;
+    else sub.textContent = `${secs}s — Google Apps Script tarda a veces, espera un poco más`;
+  }, 1000);
 }
-function unload() { document.getElementById('loading').classList.remove('show'); }
+function unload() {
+  document.getElementById('loading').classList.remove('show');
+  if (loadingCounterInterval) { clearInterval(loadingCounterInterval); loadingCounterInterval = null; }
+  document.getElementById('loading-sub').textContent = '';
+}
 function toast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -860,9 +877,22 @@ function savingError() {
   document.getElementById('saving-badge').classList.remove('show');
 }
 
-async function api(action, body={}) {
-  const res = await fetch(SCRIPT_URL, { method:'POST', body: JSON.stringify({action,...body}) });
-  return res.json();
+async function api(action, body={}, timeoutMs=12000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({action, ...body}),
+      signal: controller.signal
+    });
+    clearTimeout(timer);
+    return res.json();
+  } catch(e) {
+    clearTimeout(timer);
+    if (e.name === 'AbortError') throw new Error('timeout');
+    throw new Error('network');
+  }
 }
 
 /* ─── LOAD (sync completo — muestra loading) ─── */
@@ -874,10 +904,35 @@ async function loadLeads() {
       leads = res.data || [];
       render();
       updateAnalytics();
-      toast('✅ Sincronizado');
+      toast('✅ Sincronizado · ' + leads.length + ' pedidos');
+    } else {
+      unload();
+      showSyncError('El servidor respondió con un error. Intenta de nuevo.');
     }
-  } catch(e) { toast('❌ Sin conexión'); }
+  } catch(e) {
+    unload();
+    if (e.message === 'timeout') {
+      showSyncError('La sincronización tardó demasiado. Verifica tu conexión o inténtalo de nuevo.');
+    } else {
+      showSyncError('Sin conexión. Revisa tu internet e intenta de nuevo.');
+    }
+    return;
+  }
   unload();
+}
+
+function showSyncError(msg) {
+  // Muestra el error en la lista de pedidos si está vacía, con botón de reintento
+  if (!leads.length) {
+    document.getElementById('leads-list').innerHTML = `
+      <div class="empty">
+        <div class="empty-icon">⚠️</div>
+        <div class="empty-t">Error al sincronizar</div>
+        <div class="empty-s" style="margin-bottom:16px">${msg}</div>
+        <button onclick="loadLeads()" style="background:var(--blue);color:white;border:none;border-radius:12px;padding:12px 24px;font-size:15px;font-weight:600;cursor:pointer;font-family:-apple-system,sans-serif;">🔄 Reintentar</button>
+      </div>`;
+  }
+  toast('⚠️ ' + msg);
 }
 
 /* ─── WA MESSAGE ─── */
