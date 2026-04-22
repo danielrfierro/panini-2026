@@ -300,6 +300,37 @@
   .fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
   .fg { background: var(--green); } .fo { background: var(--orange); } .fb { background: var(--blue); } .fr { background: var(--red); }
 
+  /* ─── COMISIÓN CARD ─── */
+  .comision-card {
+    background: linear-gradient(145deg, var(--mexico-green), #009060);
+    border-radius: var(--radius);
+    padding: 18px 18px 14px;
+    margin-bottom: 12px;
+    color: white;
+    box-shadow: 0 4px 20px rgba(0,104,71,0.25);
+  }
+  .comision-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .comision-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.8; }
+  .comision-tier-badge {
+    background: rgba(255,255,255,0.2);
+    border-radius: 20px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+  }
+  .comision-nums { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .comision-num-block {}
+  .comision-num-label { font-size: 10px; opacity: 0.75; font-weight: 500; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 3px; }
+  .comision-num-val { font-family: 'Syne', sans-serif; font-size: 24px; font-weight: 800; line-height: 1; }
+  .comision-num-sub { font-size: 11px; opacity: 0.7; margin-top: 2px; }
+  .comision-rate { font-size: 12px; opacity: 0.85; margin-bottom: 10px; font-weight: 500; }
+  .comision-prog-wrap {}
+  .comision-prog-label { display: flex; justify-content: space-between; font-size: 11px; opacity: 0.75; margin-bottom: 5px; }
+  .comision-prog-bar { height: 6px; background: rgba(255,255,255,0.2); border-radius: 3px; overflow: hidden; }
+  .comision-prog-fill { height: 100%; background: white; border-radius: 3px; transition: width 0.7s ease; }
+  .comision-maxed { font-size: 12px; opacity: 0.85; text-align: center; padding: 4px 0; font-weight: 600; }
+
   .export-btn { width: 100%; padding: 14px; background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); font-family: -apple-system, sans-serif; font-size: 15px; font-weight: 600; color: var(--text); cursor: pointer; margin-top: 4px; display: flex; align-items: center; justify-content: center; gap: 8px; }
   .export-btn:active { opacity: 0.7; }
 
@@ -586,6 +617,36 @@
     <div class="an-card"><div class="an-label">Por cobrar</div><div class="an-val" style="color:var(--orange)" id="an-porcobrar">$0</div><div class="an-sub" id="an-porcobrar-sub">0 pendientes</div></div>
     <div class="an-card"><div class="an-label">Rifas 🎟</div><div class="an-val" style="color:var(--mexico-green)" id="an-rifas">0</div><div class="an-sub">boletos generados</div></div>
   </div>
+  <!-- COMISIÓN -->
+  <div class="comision-card" id="comision-card">
+    <div class="comision-header">
+      <span class="comision-title">💰 Mi comisión</span>
+      <span class="comision-tier-badge" id="com-tier-badge">Nivel 1</span>
+    </div>
+    <div class="comision-nums">
+      <div class="comision-num-block">
+        <div class="comision-num-label">✅ Confirmada</div>
+        <div class="comision-num-val" id="com-confirmed">$0</div>
+        <div class="comision-num-sub" id="com-confirmed-sub">0 cajas pagadas</div>
+      </div>
+      <div class="comision-num-block">
+        <div class="comision-num-label">📈 Proyectada</div>
+        <div class="comision-num-val" id="com-projected">$0</div>
+        <div class="comision-num-sub" id="com-projected-sub">0 cajas totales</div>
+      </div>
+    </div>
+    <div class="comision-rate" id="com-rate">$100 por caja · Nivel 1 (1–20 cajas)</div>
+    <div class="comision-prog-wrap" id="com-prog-wrap">
+      <div class="comision-prog-label">
+        <span id="com-prog-current">0 cajas</span>
+        <span id="com-prog-next">siguiente nivel: 21 cajas (+$90/caja)</span>
+      </div>
+      <div class="comision-prog-bar">
+        <div class="comision-prog-fill" id="com-prog-fill" style="width:0%"></div>
+      </div>
+    </div>
+  </div>
+
   <div class="card">
     <div class="card-header"><div class="card-title">Por producto</div></div>
     <div style="padding:4px 16px 14px" id="prods-chart"></div>
@@ -615,6 +676,27 @@
 
 <script>
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzjRlINK3Il2xCK6FtN_q5C4zF-5vYSRsK6XN-9LB-7d88_4gnqb6nnI4PsN_PSde7ntw/exec';
+
+// ─── ESQUEMA DE COMISIONES ───
+const COMMISSION_TIERS = [
+  { min: 1,   max: 20,       rate: 100, label: 'Nivel 1',  range: '1–20 cajas' },
+  { min: 21,  max: 30,       rate: 190, label: 'Nivel 2',  range: '21–30 cajas' },
+  { min: 31,  max: 60,       rate: 250, label: 'Nivel 3',  range: '31–60 cajas' },
+  { min: 61,  max: 75,       rate: 300, label: 'Nivel 4',  range: '61–75 cajas' },
+  { min: 76,  max: 120,      rate: 360, label: 'Nivel 5',  range: '76–120 cajas' },
+  { min: 121, max: 160,      rate: 380, label: 'Nivel 6',  range: '121–160 cajas' },
+  { min: 161, max: Infinity, rate: 400, label: 'Nivel MAX', range: '161+ cajas' },
+];
+
+function getTier(cajas) {
+  if (cajas === 0) return COMMISSION_TIERS[0];
+  return COMMISSION_TIERS.find(t => cajas >= t.min && cajas <= t.max) || COMMISSION_TIERS[COMMISSION_TIERS.length - 1];
+}
+
+function getNextTier(tier) {
+  const idx = COMMISSION_TIERS.indexOf(tier);
+  return idx < COMMISSION_TIERS.length - 1 ? COMMISSION_TIERS[idx + 1] : null;
+}
 const PRICES = { caja: 2500, 'album-dura': 349, 'album-suave': 99 };
 const LABELS = { caja: 'Caja 100 sobres', 'album-dura': 'Álbum pasta dura', 'album-suave': 'Álbum pasta suave' };
 const EMOJIS = { caja: '📦', 'album-dura': '📖', 'album-suave': '📗' };
@@ -1124,6 +1206,48 @@ function updateAnalytics() {
   document.getElementById('status-chart').innerHTML = Object.keys(sc).map(k=>`
     <div class="prog-row"><span class="prog-label">${sl[k]}</span><span class="prog-val">${sc[k]} · ${((sc[k]/tot)*100).toFixed(0)}%</span></div>
     <div class="prog"><div class="fill ${scl[k]}" style="width:${((sc[k]/tot)*100).toFixed(1)}%"></div></div>`).join('');
+
+  // ─── COMISIÓN ───
+  // Cajas confirmadas = pagado + entregado
+  const cajasConfirmadas = leads
+    .filter(l => l.status === 'pagado' || l.status === 'entregado')
+    .reduce((s,l) => s + (l.products||[]).filter(p=>p.prod==='caja').reduce((a,p)=>a+Number(p.qty),0), 0);
+  // Cajas proyectadas = todas (excepto cancelado)
+  const cajasProyectadas = leads
+    .filter(l => l.status !== 'cancelado')
+    .reduce((s,l) => s + (l.products||[]).filter(p=>p.prod==='caja').reduce((a,p)=>a+Number(p.qty),0), 0);
+
+  const tierConfirmado  = getTier(cajasConfirmadas);
+  const tierProyectado  = getTier(cajasProyectadas);
+  // Usamos el tier proyectado como referencia de nivel actual (más motivador)
+  const tierActual      = cajasProyectadas > 0 ? tierProyectado : COMMISSION_TIERS[0];
+  const nextTier        = getNextTier(tierActual);
+
+  const comConfirmada  = cajasConfirmadas * tierConfirmado.rate;
+  const comProyectada  = cajasProyectadas * tierProyectado.rate;
+
+  document.getElementById('com-tier-badge').textContent    = tierActual.label;
+  document.getElementById('com-confirmed').textContent     = '$' + comConfirmada.toLocaleString('es-MX');
+  document.getElementById('com-confirmed-sub').textContent = `${cajasConfirmadas} caja${cajasConfirmadas!==1?'s':''} pagadas/entregadas`;
+  document.getElementById('com-projected').textContent     = '$' + comProyectada.toLocaleString('es-MX');
+  document.getElementById('com-projected-sub').textContent = `${cajasProyectadas} caja${cajasProyectadas!==1?'s':''} totales`;
+  document.getElementById('com-rate').textContent          = `$${tierActual.rate} por caja · ${tierActual.label} (${tierActual.range})`;
+
+  const progWrap = document.getElementById('com-prog-wrap');
+  if (nextTier) {
+    const cajasFaltantes = nextTier.min - cajasProyectadas;
+    const pct = Math.min(((cajasProyectadas - tierActual.min + 1) / (nextTier.min - tierActual.min)) * 100, 100);
+    document.getElementById('com-prog-current').textContent = `${cajasProyectadas} cajas`;
+    document.getElementById('com-prog-next').textContent    = cajasFaltantes > 0
+      ? `${cajasFaltantes} más → ${nextTier.label} (+$${nextTier.rate - tierActual.rate}/caja)`
+      : `¡Listo para ${nextTier.label}!`;
+    document.getElementById('com-prog-fill').style.width   = pct.toFixed(1) + '%';
+    progWrap.style.display = 'block';
+  } else {
+    // Nivel máximo
+    progWrap.style.display = 'none';
+    document.getElementById('com-rate').textContent = `🏆 $${tierActual.rate}/caja · ¡Nivel MAX alcanzado!`;
+  }
 }
 
 /* ─── EXPORT PDF ─── */
