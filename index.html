@@ -678,7 +678,10 @@
 <script>
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzjRlINK3Il2xCK6FtN_q5C4zF-5vYSRsK6XN-9LB-7d88_4gnqb6nnI4PsN_PSde7ntw/exec';
 
-// ─── ESQUEMA DE COMISIONES ───
+// ─── COMISIÓN ÁLBUMES (tarifa fija) ───
+const ALBUM_COMMISSION = { 'album-dura': 40, 'album-suave': 10 };
+
+// ─── ESQUEMA DE COMISIONES CAJAS (escalonado) ───
 const COMMISSION_TIERS = [
   { min: 1,   max: 20,       rate: 100, label: 'Nivel 1',  range: '1–20 cajas' },
   { min: 21,  max: 30,       rate: 190, label: 'Nivel 2',  range: '21–30 cajas' },
@@ -1263,30 +1266,43 @@ function updateAnalytics() {
     <div class="prog"><div class="fill ${scl[k]}" style="width:${((sc[k]/tot)*100).toFixed(1)}%"></div></div>`).join('');
 
   // ─── COMISIÓN ───
-  // Cajas confirmadas = pagado + entregado
-  const cajasConfirmadas = leads
-    .filter(l => l.status === 'pagado' || l.status === 'entregado')
-    .reduce((s,l) => s + (l.products||[]).filter(p=>p.prod==='caja').reduce((a,p)=>a+Number(p.qty),0), 0);
-  // Cajas proyectadas = todas (excepto cancelado)
-  const cajasProyectadas = leads
-    .filter(l => l.status !== 'cancelado')
-    .reduce((s,l) => s + (l.products||[]).filter(p=>p.prod==='caja').reduce((a,p)=>a+Number(p.qty),0), 0);
+  const leadsConfirmados = leads.filter(l => l.status === 'pagado' || l.status === 'entregado');
+  const leadsProyectados = leads.filter(l => l.status !== 'cancelado');
 
-  const tierConfirmado  = getTier(cajasConfirmadas);
-  const tierProyectado  = getTier(cajasProyectadas);
-  // Usamos el tier proyectado como referencia de nivel actual (más motivador)
-  const tierActual      = cajasProyectadas > 0 ? tierProyectado : COMMISSION_TIERS[0];
-  const nextTier        = getNextTier(tierActual);
+  // Cajas
+  const cajasConfirmadas = leadsConfirmados.reduce((s,l) => s + (l.products||[]).filter(p=>p.prod==='caja').reduce((a,p)=>a+Number(p.qty),0), 0);
+  const cajasProyectadas = leadsProyectados.reduce((s,l) => s + (l.products||[]).filter(p=>p.prod==='caja').reduce((a,p)=>a+Number(p.qty),0), 0);
 
-  const comConfirmada  = cajasConfirmadas * tierConfirmado.rate;
-  const comProyectada  = cajasProyectadas * tierProyectado.rate;
+  // Álbumes
+  const getAlbums = (list, prod) => list.reduce((s,l) => s + (l.products||[]).filter(p=>p.prod===prod).reduce((a,p)=>a+Number(p.qty),0), 0);
+  const duraConf  = getAlbums(leadsConfirmados, 'album-dura');
+  const suaveConf = getAlbums(leadsConfirmados, 'album-suave');
+  const duraProy  = getAlbums(leadsProyectados, 'album-dura');
+  const suaveProy = getAlbums(leadsProyectados, 'album-suave');
+
+  const tierConfirmado = getTier(cajasConfirmadas);
+  const tierProyectado = getTier(cajasProyectadas);
+  const tierActual     = cajasProyectadas > 0 ? tierProyectado : COMMISSION_TIERS[0];
+  const nextTier       = getNextTier(tierActual);
+
+  const comCajasConf   = cajasConfirmadas * tierConfirmado.rate;
+  const comAlbumsConf  = duraConf * ALBUM_COMMISSION['album-dura'] + suaveConf * ALBUM_COMMISSION['album-suave'];
+  const comConfirmada  = comCajasConf + comAlbumsConf;
+
+  const comCajasProy   = cajasProyectadas * tierProyectado.rate;
+  const comAlbumsProy  = duraProy * ALBUM_COMMISSION['album-dura'] + suaveProy * ALBUM_COMMISSION['album-suave'];
+  const comProyectada  = comCajasProy + comAlbumsProy;
+
+  // Sub-labels con desglose
+  const subConf = `${cajasConfirmadas} caja${cajasConfirmadas!==1?'s':''} · ${duraConf+suaveConf} álbum${duraConf+suaveConf!==1?'es':''} (pagados/entregados)`;
+  const subProy = `${cajasProyectadas} caja${cajasProyectadas!==1?'s':''} · ${duraProy+suaveProy} álbum${duraProy+suaveProy!==1?'es':''} totales`;
 
   document.getElementById('com-tier-badge').textContent    = tierActual.label;
   document.getElementById('com-confirmed').textContent     = '$' + comConfirmada.toLocaleString('es-MX');
-  document.getElementById('com-confirmed-sub').textContent = `${cajasConfirmadas} caja${cajasConfirmadas!==1?'s':''} pagadas/entregadas`;
+  document.getElementById('com-confirmed-sub').textContent = subConf;
   document.getElementById('com-projected').textContent     = '$' + comProyectada.toLocaleString('es-MX');
-  document.getElementById('com-projected-sub').textContent = `${cajasProyectadas} caja${cajasProyectadas!==1?'s':''} totales`;
-  document.getElementById('com-rate').textContent          = `$${tierActual.rate} por caja · ${tierActual.label} (${tierActual.range})`;
+  document.getElementById('com-projected-sub').textContent = subProy;
+  document.getElementById('com-rate').textContent          = `Cajas: $${tierActual.rate}/caja (${tierActual.label}) · Dura: $40 · Suave: $10`;
 
   const progWrap = document.getElementById('com-prog-wrap');
   if (nextTier) {
