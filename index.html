@@ -444,16 +444,16 @@
     <div class="modal-title">✅ Pedido registrado</div>
     <div class="modal-sub">Comparte este mensaje con tu cliente para que realice el pago</div>
     <div class="modal-msg" id="modal-msg-text"></div>
+    <div class="modal-btns" style="margin-bottom:10px">
+      <button class="modal-btn btn-copy" onclick="copyMsg()">📋 Copiar</button>
+      <button class="modal-btn btn-wa" id="wa-open-btn">💬 Enviar pedido</button>
+    </div>
     <div class="clabe-card">
       <div class="clabe-left">
-        <span class="clabe-label">🏦 CLABE · STP</span>
-        <span class="clabe-num" id="clabe-display">646990404001686331</span>
+        <span class="clabe-label">🏦 Envía la CLABE sola para que tu cliente la copie fácil</span>
+        <span class="clabe-num">646990404001686331</span>
       </div>
-      <button class="clabe-copy-btn" id="clabe-copy-btn" onclick="copyClabe()">Copiar CLABE</button>
-    </div>
-    <div class="modal-btns">
-      <button class="modal-btn btn-copy" onclick="copyMsg()">📋 Copiar msg</button>
-      <button class="modal-btn btn-wa" id="wa-open-btn">💬 Enviar WA</button>
+      <button class="clabe-copy-btn" id="clabe-wa-btn" onclick="sendClabeWA()">Enviar 💬</button>
     </div>
   </div>
 </div>
@@ -628,6 +628,7 @@ let currentWAMsg = '';
 let editingId = null;
 let searchQuery = '';
 let savingTimer = null;
+let currentLeadPhone = '';
 
 /* ─── DARK MODE ─── */
 function initDarkMode() {
@@ -790,9 +791,14 @@ function buildWAMsg(lead) {
 function openWAModal(lead) {
   const msg = buildWAMsg(lead);
   currentWAMsg = msg;
+  currentLeadPhone = String(lead.phone || '').replace(/\D/g,'');
   document.getElementById('modal-msg-text').textContent = msg;
+  // Reset botón CLABE
+  const clabeBtn = document.getElementById('clabe-wa-btn');
+  clabeBtn.textContent = 'Enviar 💬';
+  clabeBtn.classList.remove('copied');
   const waBtn = document.getElementById('wa-open-btn');
-  const phone = String(lead.phone || '').replace(/\D/g,'');
+  const phone = currentLeadPhone;
   const waUrl = phone
     ? `https://wa.me/52${phone}?text=${encodeURIComponent(msg)}`
     : `https://wa.me/?text=${encodeURIComponent(msg)}`;
@@ -803,17 +809,20 @@ function openWAModal(lead) {
 function closeModal() { document.getElementById('wa-modal').classList.remove('show'); }
 function closeModalBg(e) { if (e.target === document.getElementById('wa-modal')) closeModal(); }
 function copyMsg() { navigator.clipboard.writeText(currentWAMsg).then(()=>{ toast('📋 Mensaje copiado'); }); }
-function copyClabe() {
-  navigator.clipboard.writeText(BANK.clabe).then(() => {
-    const btn = document.getElementById('clabe-copy-btn');
-    btn.textContent = '✓ Copiada';
-    btn.classList.add('copied');
-    toast('✅ CLABE copiada');
-    setTimeout(() => {
-      btn.textContent = 'Copiar CLABE';
-      btn.classList.remove('copied');
-    }, 2000);
-  });
+function sendClabeWA() {
+  const clabeMsg = `${BANK.clabe}`;
+  const btn = document.getElementById('clabe-wa-btn');
+  // Abre WA con el mismo contacto del pedido actual, solo la CLABE
+  const waUrl = currentLeadPhone
+    ? `https://wa.me/52${currentLeadPhone}?text=${encodeURIComponent(clabeMsg)}`
+    : `https://wa.me/?text=${encodeURIComponent(clabeMsg)}`;
+  window.open(waUrl, '_blank');
+  btn.textContent = '✓ Abierto';
+  btn.classList.add('copied');
+  setTimeout(() => {
+    btn.textContent = 'Enviar 💬';
+    btn.classList.remove('copied');
+  }, 2000);
 }
 
 /* ─── ADD / EDIT / SAVE ─── */
