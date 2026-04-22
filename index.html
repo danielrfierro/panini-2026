@@ -281,6 +281,8 @@
   .pill-call { background: #007aff15; color: var(--blue); }
   .pill-del { background: #ff3b3015; color: var(--red); }
   .pill-edit { background: #ff950018; color: #b06a00; }
+  .pill-contacted { background: #34c75915; color: var(--green-dark); }
+  .pill-not-contacted { background: var(--overlay-el); color: var(--text3); }
   .status-sel { background: var(--bg); border: none; border-radius: 8px; padding: 6px 10px; font-size: 12px; font-weight: 500; color: var(--text); cursor: pointer; -webkit-appearance: none; outline: none; font-family: -apple-system, sans-serif; }
 
   .empty { text-align: center; padding: 60px 20px; }
@@ -540,6 +542,7 @@
     <button class="chip" onclick="setFilter('pagado',this)">🟢 Pagado</button>
     <button class="chip" onclick="setFilter('entregado',this)">🔵 Entregado</button>
     <button class="chip" onclick="setFilter('cancelado',this)">🔴 Cancelado</button>
+    <button class="chip" onclick="setFilter('sincontactar',this)">📩 Sin contactar</button>
   </div>
   <div id="leads-list"></div>
 </div>
@@ -981,6 +984,50 @@ function sendClabeWA() {
   }, 2000);
 }
 
+/* ─── SEND WA (desde card — auto-marca contactado) ─── */
+function sendWA(id) {
+  const lead = leads.find(l=>l.id==id);
+  if (!lead) return;
+  const phone = String(lead.phone||'').replace(/\D/g,'');
+  const msg = buildWAMsg(lead);
+  const waUrl = phone
+    ? `https://wa.me/52${phone}?text=${encodeURIComponent(msg)}`
+    : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+  window.open(waUrl, '_blank');
+  markContacted(id);
+}
+
+/* ─── CONTACTADO ─── */
+async function toggleContacted(id) {
+  const lead = leads.find(l=>l.id==id);
+  if (!lead) return;
+  const oldVal = !!lead.contacted;
+  lead.contacted = !oldVal;
+  render();
+  savingStart('Actualizando contacto...');
+  try {
+    await api('update', {lead});
+    savingDone('Guardado ✓');
+  } catch(e) {
+    lead.contacted = oldVal;
+    render();
+    savingError();
+    toast('❌ Error al guardar');
+  }
+}
+
+async function markContacted(id) {
+  const lead = leads.find(l=>l.id==id);
+  if (!lead || lead.contacted) return;
+  lead.contacted = true;
+  render();
+  try {
+    await api('update', {lead});
+  } catch(e) {
+    // Silencioso — no revertir, el usuario ya vio que se marcó
+  }
+}
+
 /* ─── ADD / EDIT / SAVE ─── */
 async function saveLead() {
   if (editingId) { await updateLead(); return; }
@@ -1002,7 +1049,8 @@ async function addLead() {
     status: document.getElementById('inp-status').value,
     notes: document.getElementById('inp-notes').value.trim(),
     date: new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}),
-    total
+    total,
+    contacted: false
   };
 
   // ── Actualización optimista: UI responde al instante ──
@@ -1174,7 +1222,12 @@ function chQty(prod, d) {
 
 /* ─── RENDER ─── */
 function render() {
-  let list = currentFilter === 'todos' ? leads : leads.filter(l=>l.status===currentFilter);
+  let list = leads;
+  if (currentFilter === 'sincontactar') {
+    list = leads.filter(l => !l.contacted);
+  } else if (currentFilter !== 'todos') {
+    list = leads.filter(l => l.status === currentFilter);
+  }
   // Aplicar búsqueda
   if (searchQuery) {
     list = list.filter(l => l.name.toLowerCase().includes(searchQuery));
@@ -1182,21 +1235,23 @@ function render() {
   const el = document.getElementById('leads-list');
   if (!list.length) {
     const isSearch = !!searchQuery;
+    const isSinContactar = currentFilter === 'sincontactar';
     el.innerHTML = `<div class="empty">
-      <div class="empty-icon">${isSearch ? '🔍' : '📋'}</div>
-      <div class="empty-t">${isSearch ? 'Sin resultados' : (currentFilter==='todos'?'Sin pedidos aún':'Sin pedidos aquí')}</div>
-      <div class="empty-s">${isSearch ? `No encontramos "${searchQuery}"` : (currentFilter==='todos'?'Agrega tu primer contacto en + Nuevo':'Cambia el filtro para ver más')}</div>
+      <div class="empty-icon">${isSearch ? '🔍' : (isSinContactar ? '📩' : '📋')}</div>
+      <div class="empty-t">${isSearch ? 'Sin resultados' : (isSinContactar ? '¡Todos contactados!' : (currentFilter==='todos'?'Sin pedidos aún':'Sin pedidos aquí'))}</div>
+      <div class="empty-s">${isSearch ? `No encontramos "${searchQuery}"` : (isSinContactar ? 'No hay contactos pendientes de mensaje' : (currentFilter==='todos'?'Agrega tu primer contacto en + Nuevo':'Cambia el filtro para ver más'))}</div>
     </div>`;
   } else {
     el.innerHTML = list.map(lead=>{
       const tags = (lead.products||[]).map(p=>`<span class="tag ${TAG_CLS[p.prod]}">${EMOJIS[p.prod]} ${p.qty>1?p.qty+'× ':''}${LABELS[p.prod]}</span>`).join('');
       const init = lead.name.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
       const phone = String(lead.phone||'').replace(/\D/g,'');
-      const waUrl = phone
-        ? `https://wa.me/52${phone}?text=${encodeURIComponent(buildWAMsg(lead))}`
-        : `https://wa.me/?text=${encodeURIComponent(buildWAMsg(lead))}`;
+      const isContacted = !!lead.contacted;
+      const contactedPill = isContacted
+        ? `<button class="pill pill-contacted" onclick="toggleContacted('${lead.id}')">✓ Contactado</button>`
+        : `<button class="pill pill-not-contacted" onclick="toggleContacted('${lead.id}')">📩 Contactar</button>`;
       const phoneActions = `
-        <a class="pill pill-wa" href="${waUrl}" target="_blank">💬 WA</a>
+        <button class="pill pill-wa" onclick="sendWA('${lead.id}')">💬 WA</button>
         ${phone ? `<a class="pill pill-call" href="tel:${phone}">📞</a>` : ''}
       `;
       return `<div class="lead-card">
@@ -1213,6 +1268,7 @@ function render() {
         <div class="lead-footer">
           <span class="lead-total">$${Number(lead.total||0).toLocaleString('es-MX')}</span>
           <div class="lead-actions">
+            ${contactedPill}
             ${phoneActions}
             <select class="status-sel" onchange="updateStatus('${lead.id}',this.value)">
               <option value="pendiente" ${lead.status==='pendiente'?'selected':''}>🟡 Pendiente</option>
