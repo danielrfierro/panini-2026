@@ -315,6 +315,36 @@
   .modal-title { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; margin-bottom: 4px; }
   .modal-sub { font-size: 13px; color: var(--text3); margin-bottom: 16px; }
   .modal-msg { background: var(--bg); border-radius: var(--radius-sm); padding: 14px; font-size: 13px; line-height: 1.65; color: var(--text); white-space: pre-wrap; word-break: break-word; margin-bottom: 16px; font-family: -apple-system, sans-serif; max-height: 200px; overflow-y: auto; }
+  .clabe-card {
+    background: var(--bg);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .clabe-left { display: flex; flex-direction: column; gap: 2px; }
+  .clabe-label { font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; }
+  .clabe-num { font-family: 'DM Mono', monospace; font-size: 15px; font-weight: 500; letter-spacing: 0.5px; color: var(--text); }
+  .clabe-copy-btn {
+    flex-shrink: 0;
+    background: var(--blue);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: -apple-system, sans-serif;
+    transition: opacity 0.15s;
+    white-space: nowrap;
+  }
+  .clabe-copy-btn:active { opacity: 0.7; }
+  .clabe-copy-btn.copied { background: var(--green); }
+
   .modal-btns { display: flex; gap: 10px; }
   .modal-btn { flex: 1; padding: 14px; border-radius: var(--radius-sm); border: none; font-family: -apple-system, sans-serif; font-size: 16px; font-weight: 600; cursor: pointer; }
   .modal-btn:active { opacity: 0.8; }
@@ -414,8 +444,15 @@
     <div class="modal-title">✅ Pedido registrado</div>
     <div class="modal-sub">Comparte este mensaje con tu cliente para que realice el pago</div>
     <div class="modal-msg" id="modal-msg-text"></div>
+    <div class="clabe-card">
+      <div class="clabe-left">
+        <span class="clabe-label">🏦 CLABE · STP</span>
+        <span class="clabe-num" id="clabe-display">646990404001686331</span>
+      </div>
+      <button class="clabe-copy-btn" id="clabe-copy-btn" onclick="copyClabe()">Copiar CLABE</button>
+    </div>
     <div class="modal-btns">
-      <button class="modal-btn btn-copy" onclick="copyMsg()">📋 Copiar</button>
+      <button class="modal-btn btn-copy" onclick="copyMsg()">📋 Copiar msg</button>
       <button class="modal-btn btn-wa" id="wa-open-btn">💬 Enviar WA</button>
     </div>
   </div>
@@ -766,6 +803,18 @@ function openWAModal(lead) {
 function closeModal() { document.getElementById('wa-modal').classList.remove('show'); }
 function closeModalBg(e) { if (e.target === document.getElementById('wa-modal')) closeModal(); }
 function copyMsg() { navigator.clipboard.writeText(currentWAMsg).then(()=>{ toast('📋 Mensaje copiado'); }); }
+function copyClabe() {
+  navigator.clipboard.writeText(BANK.clabe).then(() => {
+    const btn = document.getElementById('clabe-copy-btn');
+    btn.textContent = '✓ Copiada';
+    btn.classList.add('copied');
+    toast('✅ CLABE copiada');
+    setTimeout(() => {
+      btn.textContent = 'Copiar CLABE';
+      btn.classList.remove('copied');
+    }, 2000);
+  });
+}
 
 /* ─── ADD / EDIT / SAVE ─── */
 async function saveLead() {
