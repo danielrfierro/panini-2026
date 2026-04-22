@@ -755,7 +755,7 @@ function openWAModal(lead) {
   currentWAMsg = msg;
   document.getElementById('modal-msg-text').textContent = msg;
   const waBtn = document.getElementById('wa-open-btn');
-  const phone = lead.phone ? lead.phone.replace(/\D/g,'') : '';
+  const phone = String(lead.phone || '').replace(/\D/g,'');
   const waUrl = phone
     ? `https://wa.me/52${phone}?text=${encodeURIComponent(msg)}`
     : `https://wa.me/?text=${encodeURIComponent(msg)}`;
@@ -982,7 +982,7 @@ function render() {
     el.innerHTML = list.map(lead=>{
       const tags = (lead.products||[]).map(p=>`<span class="tag ${TAG_CLS[p.prod]}">${EMOJIS[p.prod]} ${p.qty>1?p.qty+'× ':''}${LABELS[p.prod]}</span>`).join('');
       const init = lead.name.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
-      const phone = (lead.phone||'').replace(/\D/g,'');
+      const phone = String(lead.phone||'').replace(/\D/g,'');
       const waUrl = phone
         ? `https://wa.me/52${phone}?text=${encodeURIComponent(buildWAMsg(lead))}`
         : `https://wa.me/?text=${encodeURIComponent(buildWAMsg(lead))}`;
