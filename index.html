@@ -571,7 +571,7 @@ import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc,
 // ─── FIREBASE INIT ───
 const firebaseConfig = {
   apiKey: "AIzaSyA35v8DQGlck7F7vlg1exZUR8zwYbMH8Rg",
-  authDomain: "panini-2026.firebaseapp.com",
+  authDomain: "panini-2026.web.app",
   projectId: "panini-2026",
   storageBucket: "panini-2026.firebasestorage.app",
   messagingSenderId: "960212503054",
@@ -644,19 +644,8 @@ function showScreen(name) {
 
 // ─── AUTH ───
 async function loginWithGoogle() {
-  try {
-    // signInWithPopup: no usa intermediarios, compatible con Chrome Privacy Sandbox
-    await signInWithPopup(auth, gProvider);
-  } catch(e) {
-    if (e.code === 'auth/popup-blocked' || e.code === 'auth/cancelled-popup-request') {
-      // Fallback para in-app browsers (WhatsApp, Instagram) que bloquean popups
-      try { await signInWithRedirect(auth, gProvider); }
-      catch(e2) { toast('⚠️ Error al iniciar sesión'); }
-    } else if (e.code !== 'auth/popup-closed-by-user') {
-      console.error('Login error:', e);
-      toast('⚠️ Error al iniciar sesión');
-    }
-  }
+  try { await signInWithRedirect(auth, gProvider); }
+  catch(e) { toast('⚠️ Error al iniciar sesión'); }
 }
 async function logOut() {
   if (leadsUnsub) { leadsUnsub(); leadsUnsub = null; }
