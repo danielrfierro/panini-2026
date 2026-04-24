@@ -339,6 +339,16 @@
   <button class="logout-link" onclick="logOut()">Cerrar sesión</button>
 </div>
 
+<!-- Error / Debug -->
+<div id="screen-error" class="full-screen hidden">
+  <div class="status-icon">⚠️</div>
+  <div class="status-title">Error de conexión</div>
+  <div class="status-sub">Hubo un problema al cargar tu cuenta.</div>
+  <div class="status-email" id="error-detail" style="font-size:11px;word-break:break-all;max-width:320px;text-align:left;line-height:1.5;"></div>
+  <button class="google-btn" style="margin-top:16px" onclick="location.reload()">🔄 Reintentar</button>
+  <button class="logout-link" style="margin-top:10px" onclick="logOut()">Cerrar sesión</button>
+</div>
+
 <!-- ══════════════════════════════════════════
      MAIN APP
 ══════════════════════════════════════════ -->
@@ -625,7 +635,7 @@ let COMMISSION_TIERS = DEFAULT_COMMISSION_TIERS;
 
 // ─── SCREEN ROUTER ───
 function showScreen(name) {
-  ['loading','login','pending','disabled'].forEach(s => {
+  ['loading','login','pending','disabled','error'].forEach(s => {
     const el = document.getElementById('screen-'+s);
     if (el) el.classList.toggle('hidden', s !== name);
   });
@@ -682,7 +692,11 @@ async function handleUser(user) {
     }
   } catch(e) {
     console.error('handleUser error:', e);
-    showScreen('login');
+    const detail = document.getElementById('error-detail');
+    if (detail) {
+      detail.textContent = `Usuario: ${user?.email || 'desconocido'}\nError: ${e?.code || e?.message || String(e)}`;
+    }
+    showScreen('error');
   }
 }
 
@@ -1369,17 +1383,12 @@ function exportAnalyticsPDF() {
 // ─── INIT ───
 initDarkMode();
 
-// Manejar el regreso del redirect de Google
-// Cuando resuelve (con o sin usuario), marcamos redirectChecked = true
-// Si no hay usuario después de esto → onAuthStateChanged mostrará login
-getRedirectResult(auth).then((result) => {
+// Procesar el redirect de Google (si hay pendiente).
+// Solo seteamos el flag — onAuthStateChanged se encarga de mostrar el estado correcto.
+getRedirectResult(auth).then(() => {
   redirectChecked = true;
-  if (!result && !auth.currentUser) {
-    showScreen('login');
-  }
 }).catch((e) => {
   redirectChecked = true;
-  if (!auth.currentUser) showScreen('login');
   if (e?.code !== 'auth/cancelled-popup-request') {
     console.error('Redirect result error:', e);
   }
