@@ -641,42 +641,60 @@ async function logOut() {
   if (leadsUnsub) { leadsUnsub(); leadsUnsub = null; }
   await signOut(auth);
   leads = []; userProfile = null; currentUser = null;
+  redirectChecked = true;
   showScreen('login');
 }
 
-onAuthStateChanged(auth, async (user) => {
-  if (!user) { showScreen('login'); return; }
+// Flag: esperar a getRedirectResult antes de decidir mostrar login
+// Evita el flash de pantalla de login cuando venimos de un redirect de Google
+let redirectChecked = false;
+
+async function handleUser(user) {
   currentUser = user;
+  try {
+    if (user.email === ADMIN_EMAIL) {
+      await ensureUserProfile(user, 'active');
+      await loadAppConfig();
+      initLeadsListener(user.uid);
+      setupAdminUI();
+      showScreen('app');
+      return;
+    }
+    const snap = await getDoc(doc(db, 'users', user.uid));
+    if (!snap.exists()) {
+      await ensureUserProfile(user, 'pending');
+      document.getElementById('pending-email').textContent = user.email;
+      showScreen('pending');
+      return;
+    }
+    const data = snap.data();
+    if (data.status === 'active') {
+      userProfile = data;
+      await loadAppConfig();
+      initLeadsListener(user.uid);
+      updateAppUI();
+      showScreen('app');
+    } else if (data.status === 'disabled') {
+      showScreen('disabled');
+    } else {
+      document.getElementById('pending-email').textContent = user.email;
+      showScreen('pending');
+    }
+  } catch(e) {
+    console.error('handleUser error:', e);
+    showScreen('login');
+  }
+}
 
-  if (user.email === ADMIN_EMAIL) {
-    await ensureUserProfile(user, 'active');
-    await loadAppConfig();
-    initLeadsListener(user.uid);
-    setupAdminUI();
-    showScreen('app');
+onAuthStateChanged(auth, async (user) => {
+  if (!user) {
+    // No mostrar login hasta confirmar que no hay redirect pendiente
+    if (!redirectChecked) return;
+    showScreen('login');
     return;
   }
-
-  const snap = await getDoc(doc(db, 'users', user.uid));
-  if (!snap.exists()) {
-    await ensureUserProfile(user, 'pending');
-    document.getElementById('pending-email').textContent = user.email;
-    showScreen('pending');
-    return;
-  }
-  const data = snap.data();
-  if (data.status === 'active') {
-    userProfile = data;
-    await loadAppConfig();
-    initLeadsListener(user.uid);
-    updateAppUI();
-    showScreen('app');
-  } else if (data.status === 'disabled') {
-    showScreen('disabled');
-  } else {
-    document.getElementById('pending-email').textContent = user.email;
-    showScreen('pending');
-  }
+  redirectChecked = true;
+  await handleUser(user);
 });
 
 async function ensureUserProfile(user, defaultStatus) {
@@ -1352,7 +1370,16 @@ function exportAnalyticsPDF() {
 initDarkMode();
 
 // Manejar el regreso del redirect de Google
-getRedirectResult(auth).catch((e) => {
+// Cuando resuelve (con o sin usuario), marcamos redirectChecked = true
+// Si no hay usuario después de esto → onAuthStateChanged mostrará login
+getRedirectResult(auth).then((result) => {
+  redirectChecked = true;
+  if (!result && !auth.currentUser) {
+    showScreen('login');
+  }
+}).catch((e) => {
+  redirectChecked = true;
+  if (!auth.currentUser) showScreen('login');
   if (e?.code !== 'auth/cancelled-popup-request') {
     console.error('Redirect result error:', e);
   }
