@@ -552,7 +552,7 @@
 ══════════════════════════════════════════ -->
 <script type="module">
 import { initializeApp }            from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut }
+import { getAuth, signInWithRedirect, getRedirectResult, GoogleAuthProvider, onAuthStateChanged, signOut }
                                     from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc,
          collection, onSnapshot, query, orderBy, getDocs }
@@ -634,8 +634,8 @@ function showScreen(name) {
 
 // ─── AUTH ───
 async function loginWithGoogle() {
-  try { await signInWithPopup(auth, gProvider); }
-  catch(e) { if (e.code !== 'auth/popup-closed-by-user') toast('⚠️ Error al iniciar sesión'); }
+  try { await signInWithRedirect(auth, gProvider); }
+  catch(e) { toast('⚠️ Error al iniciar sesión'); }
 }
 async function logOut() {
   if (leadsUnsub) { leadsUnsub(); leadsUnsub = null; }
@@ -1350,6 +1350,13 @@ function exportAnalyticsPDF() {
 
 // ─── INIT ───
 initDarkMode();
+
+// Manejar el regreso del redirect de Google
+getRedirectResult(auth).catch((e) => {
+  if (e?.code !== 'auth/cancelled-popup-request') {
+    console.error('Redirect result error:', e);
+  }
+});
 
 // ─── WINDOW EXPORTS (for inline onclick handlers) ───
 window.loginWithGoogle   = loginWithGoogle;
