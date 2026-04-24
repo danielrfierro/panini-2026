@@ -655,10 +655,6 @@ async function logOut() {
   showScreen('login');
 }
 
-// Flag: esperar a getRedirectResult antes de decidir mostrar login
-// Evita el flash de pantalla de login cuando venimos de un redirect de Google
-let redirectChecked = false;
-
 async function handleUser(user) {
   currentUser = user;
   try {
@@ -700,15 +696,38 @@ async function handleUser(user) {
   }
 }
 
-onAuthStateChanged(auth, async (user) => {
-  if (!user) {
-    // No mostrar login hasta confirmar que no hay redirect pendiente
-    if (!redirectChecked) return;
-    showScreen('login');
-    return;
+// ─── AUTH INIT ───
+// authReady: true una vez que authStateReady() resolvió
+// onAuthStateChanged solo actúa DESPUÉS de que el estado inicial está determinado
+// Esto evita la race condition entre getRedirectResult y restauración de sesión
+let authReady = false;
+
+// Procesar redirect pendiente de Google (si hay)
+getRedirectResult(auth).catch((e) => {
+  if (e?.code !== 'auth/cancelled-popup-request') {
+    console.error('Redirect result error:', e);
   }
-  redirectChecked = true;
-  await handleUser(user);
+});
+
+// Escuchar cambios POSTERIORES al estado inicial (logout, re-login en misma sesión)
+onAuthStateChanged(auth, async (user) => {
+  if (!authReady) return; // Estado inicial lo maneja authStateReady abajo
+  if (user) {
+    await handleUser(user);
+  } else {
+    showScreen('login');
+  }
+});
+
+// Esperar a que Firebase determine el estado inicial completo
+// (incluye restauración de sesión persistida y procesamiento de redirect)
+auth.authStateReady().then(async () => {
+  authReady = true;
+  if (auth.currentUser) {
+    await handleUser(auth.currentUser);
+  } else {
+    showScreen('login');
+  }
 });
 
 async function ensureUserProfile(user, defaultStatus) {
@@ -1383,16 +1402,6 @@ function exportAnalyticsPDF() {
 // ─── INIT ───
 initDarkMode();
 
-// Procesar el redirect de Google (si hay pendiente).
-// Solo seteamos el flag — onAuthStateChanged se encarga de mostrar el estado correcto.
-getRedirectResult(auth).then(() => {
-  redirectChecked = true;
-}).catch((e) => {
-  redirectChecked = true;
-  if (e?.code !== 'auth/cancelled-popup-request') {
-    console.error('Redirect result error:', e);
-  }
-});
 
 // ─── WINDOW EXPORTS (for inline onclick handlers) ───
 window.loginWithGoogle   = loginWithGoogle;
